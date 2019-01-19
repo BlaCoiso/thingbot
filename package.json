@@ -1,0 +1,15 @@
+{
+  "name": "thingbot",
+  "version": "0.0.1",
+  "description": "Discord Bot",
+  "main": "bot.js",
+  "keywords": [
+    "discord",
+    "bot"
+  ],
+  "author": "BlaCoiso",
+  "private": true,
+  "dependencies": {
+    "discord.js": "^11.4.2"
+  }
+}

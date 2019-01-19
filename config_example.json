@@ -1,0 +1,8 @@
+{
+    "logFile": "bot.log",
+    "maxLogLines": 250,
+    "token": "Your Token Goes Here",
+    "reconnect": 30,
+    "prefix": "/",
+    "ownerID": "use this to enable dev commands, put your ID here"
+}
