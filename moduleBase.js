@@ -1,15 +1,15 @@
+//moduleBase.js: Base module code
+//Copyright (c) 2018-2019 BlaCoiso
+//This file is part of thingBot, licensed under GPL v3.0
 //jshint esversion:6
 const Discord = require("discord.js");
 
-//This is just the structure of the object with the command args
-const ArgsObject = {
-    isDM: false,
-    globalPrefix: "/",
-    prefix: "asdf",
-    content: "asdf asdf",
-    args: ["asdf"],
-    command: "asdf",
-    moduleLoader: {}
+const OutputObject = {
+    /** Send output to DM */
+    sendDM: false,
+    /** Reply to user */
+    reply: false,
+    text: "output message contents"
 };
 
 class BaseModule {
@@ -30,17 +30,18 @@ class BaseModule {
         this.commands = null;
     }
     /** Initializes the module */
-    init(logger, config) {
+    init(logger, DB) {
         this.logger = logger;
-        this.config = config;
+        this.DB = DB;
     }
     /**
      * Handles a Discord event
-     * @param {string} event 
-     * @param {Discord.Client} client 
-     * @param  {...any} args 
+     * @param {string} event Name of the event
+     * @param {Discord.Client} client Discord Client object
+     * @param {DatabaseManager} DB Database object
+     * @param  {...any} args Event arguments
      */
-    handle(event, client, ...args) {
+    handle(event, client, DB, ...args) {
     }
 }
 
@@ -59,7 +60,7 @@ class ModuleCommand {
         /**
          * Output of the command (static response), 
          * Command.run is used instead if not defined
-         * @type {string?}
+         * @type {OutputObject|string?}
          */
         this.output = "Command output";
         /** If true, the command is disabled on DMs */
@@ -68,14 +69,23 @@ class ModuleCommand {
         this.reply = false;
         /** If true, will send the response into the user's DMs */
         this.sendDM = false;
+        /**
+         * List of DB paths to prefetch before executing command
+         * @type {string|string[]?}
+         */
+        this.prefetch = ["module.var1", "guild.module.var2"];
         //TODO: Permissions
     }
     /**
      * Run the command
      * @param {Discord.Message} message 
-     * @param {ArgsObject} args 
+     * @param {} args 
      */
     run(message, args) {
+        //Expected return values:
+        //String: send string to channel
+        //Promise: send resolved promise results to channel 
+        //Object: check OutputObject
     }
 }
 module.exports = BaseModule;

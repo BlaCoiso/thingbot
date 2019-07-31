@@ -1,3 +1,6 @@
+//moduleLoader.js: Loads modules and handles events
+//Copyright 2018-2019 BlaCoiso
+//This file is part of thingBot, licensed under GPL v3.0
 //jshint esversion: 6
 const fs = require("fs");
 const modulePath = "./bot_modules";
@@ -14,11 +17,11 @@ class ModuleLoader {
         this.handledEvents = new Map();
         this.commandRegex = commandRegex;
     }
-    init(logger, logWrapper, eventCallback, config) {
+    init(logger, logWrapper, eventCallback, DB) {
         this.logger = logger;
         this.logWrapper = logWrapper;
         this.eventCallback = eventCallback;
-        this.config = config;
+        this.DB = DB;
         if (fs.existsSync(modulePath)) {
             let moduleDir = fs.readdirSync(modulePath);
             this.modules = moduleDir.filter(m => m.endsWith(".js")).map(m => m.replace(/\.js$/, ""));
@@ -32,14 +35,14 @@ class ModuleLoader {
                     logger(`Error initializing module ${moduleName}`, e);
                 }
             }
-            logger(`Loaded ${moduleCount}/${this.modules.length} modules`);
+            logger(`Loaded ${moduleCount}/${this.modules.length} modules`, "debug");
             return Array.from(this.handledEvents.keys());
         } else {
             logger("Failed to load bot modules", "fail");
             return null;
         }
     }
-    handle(event, client, ...args) {
+    handle(event, client, DB, ...args) {
         var handlers = this.handledEvents.get(event);
         if (handlers && Array.isArray(handlers) && handlers.length !== 0) {
             for (let moduleObj of handlers) {
@@ -64,9 +67,8 @@ class ModuleLoader {
                         .catch(e => this.logger("Failed to send command response", e));
                 }
                 else if (output instanceof Promise) {
-                    output.then(out => handleCommandOutput(out))
+                    return output.then(out => handleCommandOutput(out))
                         .catch(e => this.logger(`Failed to handle asynchronous command '${command}'`, e));
-                    return true;
                 } else {
                     //TODO: Embeds, permissions, merge options
                     if (output.text && typeof output.text === "string") {
@@ -80,15 +82,23 @@ class ModuleLoader {
         }
         if (cmdObj) {
             //TODO: User permission checks and command permissions
-            //TODO: Possibly add a message for when command is unavailable in DMs
-            if (args.isDM && cmdObj.disableDM) return;
-            args.output = handleCommandOutput;
+            if (args.isDM && cmdObj.disableDM) handleCommandOutput("This command is unavailable in DMs.");
+            args.setOutputCallback(handleCommandOutput);
+            args.setWrappedDB(this.DB.getWrapped(cmdObj.module, message.guild, message.author));
             if (!cmdObj.output || !handleCommandOutput(cmdObj.output)) {
-                try {
-                    handleCommandOutput(cmdObj.run(message, args));
-                }
-                catch (e) {
-                    cmdObj.module.logger(`Failed to handle command '${command}'`, e);
+                if (cmdObj.prefetch) {
+                    args.wrappedDB.prefetch(cmdObj.prefetch).then(p => {
+                        args.setPrefetched(p);
+                        handleCommandOutput(cmdObj.run(message, args));
+                    }, e => this.logger(`Failed to prefetch paths for command ${command}`, e))
+                        .catch(e => cmdObj.module.logger(`Failed to handle command '${command}'`, e));
+                } else {
+                    try {
+                        handleCommandOutput(cmdObj.run(message, args));
+                    }
+                    catch (e) {
+                        cmdObj.module.logger(`Failed to handle command '${command}'`, e);
+                    }
                 }
             }
         } else this.handle("command", message.client, command, message, args);
@@ -99,6 +109,7 @@ class ModuleLoader {
      */
     initModule(moduleObj, moduleName) {
         let events = [];
+        if (moduleObj.name === "Module") moduleObj.name = moduleName[0].toUpperCase() + moduleName.slice(1);
         if (moduleObj.events) {
             if (typeof moduleObj.events === "string") {
                 let evt = moduleObj.events.toLowerCase();
@@ -109,7 +120,6 @@ class ModuleLoader {
                 this.logger(`Module ${moduleObj.name} (${moduleName}) has invalid handled event definition`, "warn");
                 return false;
             }
-            if (moduleObj.name === "Module") moduleObj.name = moduleName[0].toUpperCase() + moduleName.slice(1);
         }
         else if (!(moduleObj.commands && Array.isArray(moduleObj.commands) && moduleObj.commands.length !== 0)) {
             this.logger(`Module ${moduleObj.name} (${moduleName}) doesn't specify handled events, ignoring`, "warn");
@@ -124,7 +134,8 @@ class ModuleLoader {
             }
         }
         moduleObj.logger = this.logWrapper(moduleObj.name);
-        moduleObj.init(moduleObj.logger, this.config);
+        moduleObj.init(moduleObj.logger, this.DB);
+        this.logger(`Initialized module ${moduleName}`, "debug");
         //TODO: Bind and init external database
         //TODO: Add some kind of utility class thing to be given to all modules
         this.loadedModules.set(moduleName, moduleObj);
@@ -240,6 +251,7 @@ class ModuleLoader {
             this.logger("No modules loaded after reload", "fatal");
             process.exit(1);
         }
+        return this.loadedModules.size;
     }
 }
 module.exports = new ModuleLoader();

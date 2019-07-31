@@ -1,12 +1,18 @@
+//eventHandler.js: Handles bot events
+//Copyright (c) 2018-2019 BlaCoiso
+//This file is part of thingBot, licensed under GPL v3.0
 //jshint esversion: 6
 const Discord = require("discord.js");
 const moduleLoader = require("./moduleLoader");
+const CommandArgs = require("./commandArgs");
 
 module.exports = {
     /** @param {Discord.Client} Client */
-    init(Client, logger, logWrapper, config) {
+    init(Client, logger, logWrapper, DB) {
         this.client = Client;
-        let moduleEvents = moduleLoader.init(logWrapper("ModuleLoader"), logWrapper, eventCallback, config);
+        this.logger = logger;
+        this.DB = DB;
+        let moduleEvents = moduleLoader.init(logWrapper("ModuleLoader"), logWrapper, eventCallback, DB);
         if (!moduleEvents) {
             logger("ModuleLoader didn't give any events to bind", "fail");
             Client.destroy().then(() => process.exit(1));
@@ -16,42 +22,32 @@ module.exports = {
                 if (typeof events === "string") events = [events];
                 if (Array.isArray(events)) {
                     for (let event of events) {
-                        if (event === "command" || event === "message") continue;
+                        if (event === "command" || event === "message" || event === "guildInit") continue;
                         else if (!moduleEvents.includes(event)) return;
                         else this.bindHandler(event);
                     }
                 }
             }
         }
+        function guildInit(guild) {
+            DB.initGuildDB(guild)
+                .catch(e => logger("Failed to initialize DB for guild " + guild.id, e))
+                .then(() => moduleLoader.handle("guildInit", Client, DB, guild));
+        }
         for (let event of moduleEvents) this.bindHandler(event);
+        Client.on("ready", () => Client.guilds.forEach(guild => guildInit(guild)));
+        Client.on("guildCreate", guild => guildInit(guild));
         Client.on("message", message => {
             try {
-                let botID = Client.user.id;
-                if (message.author.id === botID) return;
-                moduleLoader.handle("message", Client, message);
-                let cmdArgs = {};
-                let content = message.content;
-                cmdArgs.isDM = message.channel.type === "dm";
-                cmdArgs.globalPrefix = config.prefix;
-                let mentionPrefix = `<@${botID}> `;
-                let guildMentionPrefix = `<@!${botID}> `;
-                let realPrefix = "";
-                //TODO: Add per-server config and server local prefix settings
-                if (config.prefix && content.startsWith(config.prefix)) realPrefix = config.prefix;
-                else if (content.startsWith(mentionPrefix)) realPrefix = mentionPrefix;
-                else if (content.startsWith(guildMentionPrefix)) realPrefix = guildMentionPrefix;
-                else if (!cmdArgs.isDM) return;
-                cmdArgs.prefix = realPrefix;
-                cmdArgs.content = content.slice(realPrefix.length);
-                //TODO: Add cmdArgs.cleanContent and find the offset of the beginning of the content
-                if (realPrefix !== config.prefix) cmdArgs.content = cmdArgs.content.trimLeft();
-                let split = cmdArgs.content.split(" ");
-                let command = split.shift().trim().toLowerCase();
-                if (command === "" || !moduleLoader.commandRegex.test(command)) return;
-                cmdArgs.args = split.filter(arg => arg.trim() !== "");
-                cmdArgs.command = command;
-                cmdArgs.moduleLoader = moduleLoader;
-                moduleLoader.handleCommand(command, message, cmdArgs);
+                if (message.author.id === Client.user.id) return;
+                moduleLoader.handle("message", Client, DB, message);
+                if (message.author.bot) return;
+                if (message.guild) DB.read("guild.prefix", null, message.guild).then(p => this.handleCommand(message, p),
+                    e => {
+                        logger("Failed to fetch guild prefix, attempting to handle command without prefix", "warn", e);
+                        this.handleCommand(message);
+                    }).catch(e => logger("Failed to handle command", e));
+                else this.handleCommand(message);
             } catch (e) {
                 logger("Failed to handle 'message' event", e);
             }
@@ -59,6 +55,24 @@ module.exports = {
     },
     bindHandler(event) {
         if (event === "command" || event === "message") return;
-        this.client.on(event, moduleLoader.handle.bind(moduleLoader, event, this.client));
+        this.client.on(event, moduleLoader.handle.bind(moduleLoader, event, this.client, this.DB));
+    },
+    handleCommand(message, guildPrefix) {
+        let prefix = this.detectPrefix(message, guildPrefix);
+        let cmdArgs = new CommandArgs(message, this.DB, prefix, moduleLoader);
+        if (!cmdArgs || !cmdArgs.command || !moduleLoader.commandRegex.test(cmdArgs.command)) return;
+        moduleLoader.handleCommand(cmdArgs.command, message, cmdArgs);
+    },
+    detectPrefix(message, guildPrefix) {
+        let content = message.content;
+        let botID = message.client.user.id;
+        let globalPrefix = this.DB.getPrefix();
+        let mentionPrefix = `<@${botID}> `;
+        let guildMentionPrefix = `<@!${botID}> `;
+        if (guildPrefix && content.startsWith(guildPrefix)) return guildPrefix;
+        else if (!guildPrefix && globalPrefix && content.startsWith(globalPrefix)) return globalPrefix;
+        else if (content.startsWith(mentionPrefix)) return mentionPrefix;
+        else if (content.startsWith(guildMentionPrefix)) return guildMentionPrefix;
+        return "";
     }
 };

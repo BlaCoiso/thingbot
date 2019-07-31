@@ -3,3 +3,5 @@ package-lock.json
 config.json
 .vscode
 *.log
+database/*
+!database/*.js

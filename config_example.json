@@ -1,8 +1,11 @@
 {
     "logFile": "bot.log",
     "maxLogLines": 250,
+    "disableLog": false,
+    "useDBConfig": false,
+    "saveDBConfig": false,
     "token": "Your Token Goes Here",
-    "reconnect": 30,
+    "reconnectTime": 30,
     "prefix": "/",
-    "ownerID": "use this to enable dev commands, put your ID here"
+    "ownerID": "either your ID or an array of IDs with owner access"
 }
