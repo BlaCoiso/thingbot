@@ -20,8 +20,13 @@ Run `node bot` to start the bot. All bot messages will be printed to the console
 * `options` (`object`): Specifies the database options. This is optional and can be omitted when the options are set inside the `database` object.  
 
 `token` (`string`): Discord login token for the bot.  
-`reconnectTime` (`number`): Amount of seconds to wait to reconnect after Discord's WebSocket gets closed. Set to `-1` to disable reconnecting or to `0` to try immediately. Default value: `30` seconds.
-`prefix` (`string`): Prefix to be used by the bot. Set to `""` to use only mention prefixes. Guilds can still enable normal prefixes. Default value: `""` (no prefix).
+`reconnectTime` (`number`): Amount of seconds to wait to reconnect after Discord's WebSocket gets closed.
+Set to `-1` to disable reconnecting or to `0` to try immediately.
+Note: `discord.js` automatically reconnects after `5.5` seconds. Default value: `30` seconds.  
+`prefix` (`string`): Prefix to be used by the bot.
+Set to `""` to use only mention prefixes.
+Guilds can still enable normal prefixes.
+Default value: `""` (no prefix).  
 `ownerID` (`string|string[]`): ID or array of IDs with owner permission.
 
 ## Contributing

@@ -22,7 +22,7 @@ function Logger(minLogLevel, logCB, moduleName) {
     */
     function getLog(message, moduleName, level, error) {
         var timestamp = new Date().toISOString();
-        if (!error && level && level.message && level.stack) {
+        if (!error && level && (level.message || level.stack)) {
             error = level;
             level = "ERROR";
         }

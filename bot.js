@@ -67,6 +67,7 @@ function botInit() {
         }
         eventHandler.init(Client, loggerWrapper("EventHandler"), loggerWrapper, BotDB);
         Client.on("ready", () => mainLogger("Bot is ready"));
+        Client.on("error", e => mainLogger("Connection error", e));
         Client.on("disconnect", wsevent => {
             //If the WS closed with code 1000 then there was no error, 4004 means auth failed
             if (wsevent && (wsevent.code === 1000) || wsevent.code === 4004) return;
@@ -80,7 +81,7 @@ function botInit() {
                 return;
             } else mainLogger(`Connection was closed (${wsevent.code}), attempting to reconnect${reconnectTime ? " in " + reconnectTime + " seconds" : ""}...`,
                 "warn");
-            setTimeout(Client.login.bind(Client), BotDB.getReconnectTime() * 1000, Client.token);
+            setTimeout(Client.login.bind(Client), reconnectTime * 1000, Client.token);
         });
         mainLogger("Logging in...");
         Client.login(BotDB.getToken())
