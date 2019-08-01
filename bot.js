@@ -74,7 +74,11 @@ function botInit() {
                 mainLogger("Bot requires sharding to login", "fail");
                 return;
             }
-            mainLogger(`Connection was closed (${wsevent.code}), attempting to reconnect in ${BotDB.getReconnectTime()} seconds...`,
+            let reconnectTime = BotDB.getReconnectTime();
+            if (reconnectTime < 0) {
+                mainLogger(`Connection was closed (${wsevent.code})`, "fail");
+                return;
+            } else mainLogger(`Connection was closed (${wsevent.code}), attempting to reconnect${reconnectTime ? " in " + reconnectTime + " seconds" : ""}...`,
                 "warn");
             setTimeout(Client.login.bind(Client), BotDB.getReconnectTime() * 1000, Client.token);
         });

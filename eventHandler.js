@@ -17,12 +17,13 @@ module.exports = {
             logger("ModuleLoader didn't give any events to bind", "fail");
             Client.destroy().then(() => process.exit(1));
         }
+        const handledEvents = ["command", "message", "guildInit", "ready", "guildCreate"];
         function eventCallback(events) {
             if (events) {
                 if (typeof events === "string") events = [events];
                 if (Array.isArray(events)) {
                     for (let event of events) {
-                        if (event === "command" || event === "message" || event === "guildInit") continue;
+                        if (handledEvents.includes(event)) continue;
                         else if (!moduleEvents.includes(event)) return;
                         else this.bindHandler(event);
                     }
@@ -30,13 +31,18 @@ module.exports = {
             }
         }
         function guildInit(guild) {
-            DB.initGuildDB(guild)
+            return DB.initGuildDB(guild)
                 .catch(e => logger("Failed to initialize DB for guild " + guild.id, e))
                 .then(() => moduleLoader.handle("guildInit", Client, DB, guild));
         }
         for (let event of moduleEvents) this.bindHandler(event);
-        Client.on("ready", () => Client.guilds.forEach(guild => guildInit(guild)));
-        Client.on("guildCreate", guild => guildInit(guild));
+        Client.on("ready", () => {
+            let requests = [];
+            Client.guilds.forEach(guild => requests.push(guildInit(guild)));
+            Promise.all(requests).then(() => moduleLoader.handle("ready", Client, DB));
+        });
+        Client.on("guildCreate", guild => guildInit(guild)
+            .then(() => moduleLoader.handle("guildCreate", Client, DB, guild)));
         Client.on("message", message => {
             try {
                 if (message.author.id === Client.user.id) return;

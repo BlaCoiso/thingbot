@@ -31,7 +31,7 @@ class DatabaseManager {
                 logger(`Invalid database provider name, assuming '${providerModuleName}'`, "warn");
                 providerModuleName = fixMatch[1];
             }
-            let DBModule = tryFindDB(providerModuleName);
+            let DBModule = tryFindDB(providerModuleName, logger);
             if (!DBModule) logger(`Failed to find database provider '${providerModuleName}'`, "error");
             else {
                 logger(`Initializing DB Provider ${providerModuleName} (${DBModule.DBName}.js)...`, "debug");
@@ -109,14 +109,10 @@ class DatabaseManager {
         return this.DB.read("global").then(g => {
             let updates = [];
             if (this.config.saveDBConfig && !g.token) {
-                g.configInitTS = Date.now();
-                Object.assign(g, {
-                    prefix: this.getPrefix(),
-                    token: this.getToken(),
-                    reconnectTime: this.getReconnectTime(),
-                    owners: this.getOwnerList()
-                });
-                updates.push(this.DB.store(g));
+                updates.push(this.DB.store("global.prefix", this.getPrefix()));
+                updates.push(this.DB.store("global.token", this.getToken()));
+                updates.push(this.DB.store("global.reconnectTime", this.getReconnectTime()));
+                updates.push(this.DB.store("global.owners", this.getOwnerList()));
             }
             //TODO: When DB version changes, update based on old version
             return Promise.all(updates);
@@ -166,7 +162,7 @@ class DatabaseManager {
         let userID = user ? (typeof user === "string" ? user : user.id) : "";
         let moduleContext = context.module;
         let moduleName = moduleContext ? (typeof moduleContext === "string" ? moduleContext : moduleContext.name) : "";
-        moduleName = moduleName[0].toLowerCase() + moduleName.slice(1);
+        if (moduleName) moduleName = moduleName[0].toLowerCase() + moduleName.slice(1);
         /*
             global.module -> global.moduleData.moduleName (global data for module)
             module -> global.module
@@ -177,9 +173,9 @@ class DatabaseManager {
             user -> users.uID (user data)
             user.module -> user.moduleData.moduleName (user data for module)
         */
-        let guildMatchRegex = /^guild(?=$|\.)/;
-        let userMatchRegex = /^(guild\.|guilds\.[0-9]+\.)?user(?=$|\.)/;
-        let moduleMatchRegex = /^((?:global|(?:guild|guilds\.[0-9]+)?(?:\.)?(?:user|users\.[0-9]+)?)\.)module(?=$|\.)/;
+        const guildMatchRegex = /^guild(?=$|\.)/;
+        const userMatchRegex = /^(guild\.|guilds\.[0-9]+\.)?user(?=$|\.)/;
+        const moduleMatchRegex = /^((?:global|(?:guild|guilds\.[0-9]+)?(?:\.)?(?:user|users\.[0-9]+)?)\.)module(?=$|\.)/;
         let translated = path.replace(/^module(?=$|\.)/, "global.module");
         if (translated.match(guildMatchRegex)) {
             if (!guildID) return "";
@@ -258,10 +254,15 @@ class DatabaseManager {
     getReconnectTime() {
         let recTime = this.config.reconnectTime || this.config.reconnect;
         const defaultRecTime = 30;
-        if (!recTime) return defaultRecTime;
-        if (typeof recTime === "number") return recTime || defaultRecTime;
-        else if (typeof recTime === "string") return parseInt(recTime) || defaultRecTime;
-        else return defaultRecTime;
+        if (!recTime) recTime = defaultRecTime;
+        else if (typeof recTime === "number" && Number.isFinite(recTime));
+        else if (typeof recTime === "string") {
+            let temp = parseInt(recTime);
+            if (Number.isFinite(temp)) recTime = temp;
+            else recTime = defaultRecTime;
+        }
+        else recTime = defaultRecTime;
+        this.config.reconnectTime = recTime;
     }
     getPrefix() {
         let prefix = this.config.prefix;
@@ -284,7 +285,7 @@ class DatabaseManager {
     }
 }
 
-function tryFindDB(moduleName) {
+function tryFindDB(moduleName, logger) {
     //name.js, DBname.js, nameDB.js, nameProvider.js, nameDBProvider.js
     let moduleAttempts = [moduleName, "DB" + moduleName, moduleName + "DB",
         moduleName + "Provider", moduleName + "DBProvider"];
@@ -297,7 +298,11 @@ function tryFindDB(moduleName) {
                 modObj.DBName = attemptName;
                 return modObj;
             }
-        } catch (e) { }
+        } catch (e) {
+            if (e && e.message &&
+                !(e.message.toLowerCase().includes("cannot find module") && e.message.includes(attemptName)))
+                logger(`Failed to load DB Provider '${moduleName}' (${attemptName}.js)`, e);
+        }
     }
     return null;
 }
