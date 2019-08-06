@@ -35,6 +35,13 @@ class ModuleLoader {
                     logger(`Error initializing module ${moduleName}`, e);
                 }
             }
+            if (this.modules.length === 0) {
+                logger("No modules to be loaded", "fatal");
+                process.abort();
+            } else if (moduleCount === 0) {
+                logger("Failed to load any module", "fatal");
+                process.abort();
+            }
             logger(`Loaded ${moduleCount}/${this.modules.length} modules`, "debug");
             return Array.from(this.handledEvents.keys());
         } else {
@@ -136,7 +143,6 @@ class ModuleLoader {
         moduleObj.logger = this.logWrapper(moduleObj.name);
         moduleObj.init(moduleObj.logger, this.DB);
         this.logger(`Initialized module ${moduleName}`, "debug");
-        //TODO: Bind and init external database
         //TODO: Add some kind of utility class thing to be given to all modules
         this.loadedModules.set(moduleName, moduleObj);
         if (moduleObj.commands && Array.isArray(moduleObj.commands) && moduleObj.commands.length !== 0) {
@@ -236,7 +242,11 @@ class ModuleLoader {
     reloadModule(moduleName) {
         if (this.loadedModules.has(moduleName) || this.modules.includes(moduleName)) {
             this.unloadModule(moduleName);
-            return this.loadModule(moduleName);
+            let result = this.loadModule(moduleName);
+            if (this.loadedModules.size === 0) {
+                this.logger("No modules loaded after reload", "fatal");
+                process.abort();
+            } else return result;
         } else this.logger("Attempted to reload a module that wasn't loaded", "warn");
     }
     reload() {
@@ -249,7 +259,7 @@ class ModuleLoader {
         }
         if (this.loadedModules.size === 0) {
             this.logger("No modules loaded after reload", "fatal");
-            process.exit(1);
+            process.abort();
         }
         return this.loadedModules.size;
     }

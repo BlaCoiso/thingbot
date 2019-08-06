@@ -51,7 +51,8 @@ class ModuleCommand {
         this.name = "command";
         /** Command's description */
         this.description = "description";
-        //TODO: Help -> usage
+        //TODO: Multiple usage strings
+        this.usage = "[optional] {required} {opt1|opt2|opt3}";
         /**
          * Aliases for this command
          * @type {string|string[]?}

@@ -63,7 +63,7 @@ function botInit() {
     BotDB.init().then(() => {
         if (!BotDB.getToken()) {
             mainLogger("Invalid bot token", "fail");
-            Client.destroy().then(() => process.exit(1));
+            Client.destroy().then(() => process.abort());
         }
         eventHandler.init(Client, loggerWrapper("EventHandler"), loggerWrapper, BotDB);
         Client.on("ready", () => mainLogger("Bot is ready"));

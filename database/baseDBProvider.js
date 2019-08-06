@@ -44,7 +44,6 @@ class BaseDBProvider {
      * @param {string} path 
      */
     resolveFilePath(path) {
-        //const fs = require("fs");
         let resolvedPath = path.replace(/[\\/]/g, this.filePathChar);
         let absolute = false;
         if (resolvedPath.includes(this.filePathChar)) {
@@ -55,7 +54,6 @@ class BaseDBProvider {
             } else if (resolvedPath.startsWith(this.filePathChar)) absolute = true;
             splitPath = splitPath.filter(p => p && p !== ".");
             resolvedPath = splitPath.join(this.filePathChar);
-            //TODO: Recursively make dir structure
         }
         if (!absolute) resolvedPath = this.DBRoot + resolvedPath;
         return resolvedPath;

@@ -254,7 +254,7 @@ class DatabaseManager {
     getReconnectTime() {
         let recTime = this.config.reconnectTime || this.config.reconnect;
         const defaultRecTime = 30;
-        if (!recTime) recTime = defaultRecTime;
+        if (!recTime) return defaultRecTime;
         else if (typeof recTime === "number" && Number.isFinite(recTime));
         else if (typeof recTime === "string") {
             let temp = parseInt(recTime);

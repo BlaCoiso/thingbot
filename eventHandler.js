@@ -15,7 +15,7 @@ module.exports = {
         let moduleEvents = moduleLoader.init(logWrapper("ModuleLoader"), logWrapper, eventCallback, DB);
         if (!moduleEvents) {
             logger("ModuleLoader didn't give any events to bind", "fail");
-            Client.destroy().then(() => process.exit(1));
+            Client.destroy().then(() => process.abort());
         }
         const handledEvents = ["command", "message", "guildInit", "ready", "guildCreate"];
         function eventCallback(events) {
@@ -75,7 +75,7 @@ module.exports = {
         let globalPrefix = this.DB.getPrefix();
         let mentionPrefix = `<@${botID}> `;
         let guildMentionPrefix = `<@!${botID}> `;
-        if (guildPrefix && content.startsWith(guildPrefix)) return guildPrefix;
+        if (guildPrefix && guildPrefix !== "none" && content.startsWith(guildPrefix)) return guildPrefix;
         else if (!guildPrefix && globalPrefix && content.startsWith(globalPrefix)) return globalPrefix;
         else if (content.startsWith(mentionPrefix)) return mentionPrefix;
         else if (content.startsWith(guildMentionPrefix)) return guildMentionPrefix;
