@@ -74,12 +74,11 @@ class CoreModule extends BaseModule {
                     let global = args.DB.getPrefix();
                     let guild = args.isDM ? "" : await args.wrappedDB.read("guild.prefix");
                     let defPrefix = global ? '`' + global + '`' : "mention only";
-                    let curPrefix = guild ? (guild === "none" ? "mention only" : guild) : defPrefix;
+                    let curPrefix = guild ? (guild === "none" ? "mention only" : '`' + guild + '`') : defPrefix;
                     let parsedArgs = args.getParsed();
                     let newThing = "";
-                    let updatePrefix = false;
                     //TODO: Permissions and stuff; this code is disabled until perms are implemented
-                    if (parsedArgs.length !== 0 && !args.isDM /*&& false*/) {
+                    if (parsedArgs.length !== 0 && !args.isDM && false) {
                         let argText = parsedArgs[0].text;
                         let argCmd = argText.toLowerCase();
                         let argType = parsedArgs[0].type;
@@ -91,27 +90,22 @@ class CoreModule extends BaseModule {
                             } else return "You need to specify the new prefix.";
                         }
                         if (argCmd === "clear" || argCmd === "reset" || (global && argText === global)) {
-                            updatePrefix = true;
-                        } else if (argCmd === "none" || argCmd === "disable") {
-                            updatePrefix = true;
-                            newThing = "none";
-                        } else {
+                        } else if (argCmd === "none" || argCmd === "disable") newThing = "none";
+                        else {
                             if (argType !== "text") {
                                 return "Invalid prefix.";
-                            } else {
-                                updatePrefix = true;
-                                newThing = argText;
+                            } else newThing = argText;
                             }
-                        }
-                        if (updatePrefix) {
+                        if (newThing === guild) return `The current prefix already is ${curPrefix}.`;
+                        else {
                             const prefixUpdateFail = "Failed to update guild prefix";
                             try {
                                 let writeRes = await args.wrappedDB.store("guild.prefix", newThing);
                                 if (writeRes) {
                                     //TODO: Possibly allow changing hardcoded 30 second wait time to something else
-                                    let m = await args.output("Prefix was successfully set to " +
-                                        (newThing ? (newThing === "none" ? "mention only" : '`' + newThing + '`') : "default: " + defPrefix) +
-                                        ". Type `undo` in the next 30 seconds to undo this change.");
+                                    let setMsg = `Prefix was successfully set to ${newThing ?
+                                        (newThing === "none" ? "mention only" : '`' + newThing + '`') : "default: " + defPrefix}.`;
+                                    let m = await args.output(setMsg + " Type `undo` in the next 30 seconds to undo this change.");
                                     if (m) {
                                         let matches = await msg.channel.awaitMessages(
                                             m => m.author.id === msg.author.id && m.content.toLowerCase().startsWith("undo"),
@@ -119,9 +113,13 @@ class CoreModule extends BaseModule {
                                         );
                                         if (matches.size !== 0) {
                                             writeRes = await args.wrappedDB.store("guild.prefix", guild);
-                                            if (writeRes) m.edit(`Prefix was successfully reverted to ${curPrefix}.`);
-                                            else args.output("Failed to undo prefix change.");
+                                            if (writeRes) {
+                                                let revertMsg = `Prefix was successfully reverted to ${curPrefix}.`;
+                                                if (m.deleted) return revertMsg;
+                                                else await m.edit(`~~${setMsg}~~ ${revertMsg}`);
                                         }
+                                            else return "Failed to undo prefix change.";
+                                        } else if (!m.deleted) await m.edit(setMsg);
                                     }
                                 }
                                 else return prefixUpdateFail + '.';

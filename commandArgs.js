@@ -15,17 +15,20 @@ class CommandArgs {
         this.prefix = prefix;
         this.moduleLoader = moduleLoader;
         this.content = message.content.slice(prefix.length).trimLeft();
-        let split = this.getArgs();
-        this.command = split && split.length > 0 ? split.shift().toLowerCase() : "";
-        this.args = split;
+        this.getArgs();
         this.parsedArgs = null;
         this.output = function () { };
-        this.wrappedDB = null;
+        this.setDBContext({ user: message.author, guild: message.guild });
         this.prefetched = {};
     }
     /** @returns {string[]} */
     getArgs() {
-        return this.args || this.content.split(" ").filter(a => a.trim() !== "");
+        if (!this.args) {
+            let split = this.content.split(" ").filter(a => a.trim() !== "");
+            this.command = split && split.length > 0 ? split.shift().toLowerCase() : "";
+            this.args = split;
+        }
+        return this.args;
     }
     getParsed() {
         if (this.parsedArgs) return this.parsedArgs;
@@ -128,11 +131,26 @@ class CommandArgs {
     setOutputCallback(out) {
         this.output = out;
     }
-    setWrappedDB(wDB) {
-        this.wrappedDB = wDB;
+    setDBContext(context) {
+        if (!this.DBContext) this.DBContext = {};
+        if (context && typeof context === "object") {
+            if (context.user) this.DBContext.user = context.user;
+            if (context.guild) this.DBContext.guild = context.guild;
+            if (context.module) this.DBContext.module = context.module;
+        }
+        this.wrappedDB = this.DB.getWrapped(this.DBContext.module, this.DBContext.guild, this.DBContext.user);
     }
     setPrefetched(data) {
-        this.prefetched = data;
+        Object.assign(this.prefetched, data);
+    }
+    setContent(content) {
+        this.args = null;
+        this.content = content;
+        this.getArgs();
+        if (this.parsedArgs) {
+            this.parsedArgs = null;
+            this.getParsed();
+        }
     }
     loadModule(modName) {
         modName = checkModName(modName);

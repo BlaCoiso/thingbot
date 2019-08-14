@@ -91,7 +91,7 @@ class ModuleLoader {
             //TODO: User permission checks and command permissions
             if (args.isDM && cmdObj.disableDM) handleCommandOutput("This command is unavailable in DMs.");
             args.setOutputCallback(handleCommandOutput);
-            args.setWrappedDB(this.DB.getWrapped(cmdObj.module, message.guild, message.author));
+            args.setDBContext({ module: cmdObj.module });
             if (!cmdObj.output || !handleCommandOutput(cmdObj.output)) {
                 if (cmdObj.prefetch) {
                     args.wrappedDB.prefetch(cmdObj.prefetch).then(p => {
