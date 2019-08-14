@@ -197,7 +197,10 @@ class ModuleLoader {
             if (this.loadedModules.has(moduleName)) this.unloadModule(moduleName);
             if (!this.modules.includes(moduleName)) this.modules.push(moduleName);
             let moduleObj = require(modulePath + '/' + moduleName);
-            if (moduleObj) return this.initModule(moduleObj, moduleName);
+            if (moduleObj) {
+                if (moduleObj.events) this.eventCallback(moduleObj.events);
+                return this.initModule(moduleObj, moduleName);
+            }
         } catch (e) {
             this.logger(`Error initializing module ${moduleName}`, e);
         }
@@ -241,8 +244,16 @@ class ModuleLoader {
     }
     reloadModule(moduleName) {
         if (this.loadedModules.has(moduleName) || this.modules.includes(moduleName)) {
+            let moduleObj = this.loadedModules.get(moduleName);
             this.unloadModule(moduleName);
             let result = this.loadModule(moduleName);
+            if (!result && moduleObj) {
+                try {
+                    this.initModule(moduleObj, moduleName);
+                } catch (e) {
+                    this.logger("Failed to revert module from cache", e);
+                }
+            }
             if (this.loadedModules.size === 0) {
                 this.logger("No modules loaded after reload", "fatal");
                 process.abort();
@@ -250,18 +261,29 @@ class ModuleLoader {
         } else this.logger("Attempted to reload a module that wasn't loaded", "warn");
     }
     reload() {
+        let oldLoaded = new Map(this.loadedModules);
         this.loadedModules.clear();
         this.commands.clear();
         this.handledEvents.clear();
+        let recovered = 0;
         for (let moduleName of this.modules) {
             delete require.cache[require.resolve(modulePath + '/' + moduleName)];
-            this.loadModule(moduleName);
+            if (!this.loadModule(moduleName)) {
+                if (oldLoaded.has(moduleName)) {
+                    let moduleObj = oldLoaded.get(moduleName);
+                    try {
+                        if (this.initModule(moduleObj, moduleName))++recovered;
+                    } catch (e) {
+                        this.logger("Failed to revert module from cache", e);
+                    }
+                }
+            }
         }
         if (this.loadedModules.size === 0) {
             this.logger("No modules loaded after reload", "fatal");
             process.abort();
         }
-        return this.loadedModules.size;
+        return this.loadedModules.size - recovered;
     }
 }
 module.exports = new ModuleLoader();
