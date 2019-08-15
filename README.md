@@ -1,5 +1,5 @@
 # ThingBot
-This is a Discord bot using the `discord.js` library for node.js. This code is licensed under [GPL v3.0](license.txt). Read [license.txt](license.txt) for the terms and conditions of this license.
+This is a Discord bot using the `discord.js` library for node.js. This code is licensed under [GPL v3.0](LICENSE.txt). Read [LICENSE.txt](LICENSE.txt) for the terms and conditions of this license.
 
 ## Before starting the bot
 Rename `config_example.json` to `config.json`, then modify the config. Check [Config](#Config) for details.  
