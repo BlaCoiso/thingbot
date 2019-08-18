@@ -107,6 +107,7 @@ class BaseDBProvider {
             paths = path;
         }
         if (paths.length > 0) {
+            //TODO: Prefetch only existing paths instead of failing
             if (this.async) {
                 let promises = [];
                 paths.forEach(p => promises.push(this.readPath(p)));

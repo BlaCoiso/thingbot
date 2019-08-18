@@ -3,6 +3,7 @@
 //This file is part of thingBot, licensed under GPL v3.0
 //jshint esversion:8
 const BaseModule = require("../moduleBase");
+const inspect = require("util").inspect;
 class CoreModule extends BaseModule {
     constructor() {
         super();
@@ -55,7 +56,7 @@ class CoreModule extends BaseModule {
                             }
                             return `Reloaded ${reloaded.length} module${reloaded.length === 1 ? '' : 's'}${reloaded.length > 0 ? " (" + reloaded.join(", ") + ")" : ""}.`;
                         }
-                    } else return "You don't have permissions to use this command.";
+                    } else return args.getError("NO_PERMS");
                 }
             },
             {
@@ -70,6 +71,7 @@ class CoreModule extends BaseModule {
             {
                 name: "prefix",
                 description: "Show or change the prefix",
+                usage: "[prefix]",
                 async run(msg, args) {
                     let global = args.DB.getPrefix();
                     let guild = args.isDM ? "" : await args.wrappedDB.read("guild.prefix");
@@ -95,7 +97,7 @@ class CoreModule extends BaseModule {
                             if (argType !== "text") {
                                 return "Invalid prefix.";
                             } else newThing = argText;
-                            }
+                        }
                         if (newThing === guild) return `The current prefix already is ${curPrefix}.`;
                         else {
                             const prefixUpdateFail = "Failed to update guild prefix";
@@ -117,7 +119,7 @@ class CoreModule extends BaseModule {
                                                 let revertMsg = `Prefix was successfully reverted to ${curPrefix}.`;
                                                 if (m.deleted) return revertMsg;
                                                 else await m.edit(`~~${setMsg}~~ ${revertMsg}`);
-                                        }
+                                            }
                                             else return "Failed to undo prefix change.";
                                         } else if (!m.deleted) await m.edit(setMsg);
                                     }
@@ -130,6 +132,37 @@ class CoreModule extends BaseModule {
                         }
                     } else return `Default prefix: ${defPrefix}` +
                         (args.isDM ? "" : `\nCurrent prefix: ${curPrefix}`);
+                }
+            },
+            {
+                name: "eval",
+                description: "Evaluates code (owner only)",
+                usage: "<code>",
+                run(msg, args) {
+                    //TODO: Config option to disable eval (global.core.disableEval ?)
+                    function getErrorMessage(e) {
+                        if (typeof e === "string") return e;
+                        else if (typeof e === "object") return `(\`${e.name || "Error"}\`): ${e.message || "Unknown error"}`;
+                        return "Unknown error";
+                    }
+                    if (args.DB.getOwnerList().includes(msg.author.id)) {
+                        let evalCode = args.content.slice(args.command.length).trimLeft();
+                        if (!evalCode) return "No code specified.";
+                        this.module.logger(`User ${msg.author.username}#${msg.author.discriminator} (${msg.author.id}) used eval: "${evalCode}"`);
+                        let text = `Input: \`\`\`js\n${evalCode}\`\`\``;
+                        try {
+                            //jshint -W061
+                            let evalRes = eval(evalCode);
+                            if (evalRes instanceof Promise) {
+                                let out = args.output(text + "Result: [`PROMISE`]");
+                                return evalRes.then(v => out.then(m => m.edit(`${m.content}\`\`\`js\n${inspect(v, false, 0)}\`\`\``)))
+                                    .catch(e => out.then(m => m.edit(`${m.content}\nAsync Error: ${getErrorMessage(e)}`)));
+                            }
+                            else return text + `Result: \`\`\`js\n${inspect(evalRes, false, 0)}\`\`\``;
+                        } catch (e) {
+                            return text + `Error: ${getErrorMessage(e)}`;
+                        }
+                    } else return args.getError("NO_PERMS");
                 }
             }
         ];

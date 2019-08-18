@@ -3,6 +3,16 @@
 //This file is part of thingBot, licensed under GPL v3.0
 //jshint esversion: 6
 
+const messageErrors = {
+    NO_PERMS: "You don't have permissions to use this command.",
+    NO_EMBED: "This command needs embed permissions.",
+    NO_BOT_PERMS: "I don't have permission to do that.",
+    NO_DM: "This command is unavailable in DMs.",
+    EXEC_ERR: "An error occurred while executing this command.",
+    PERM_REQ: "You need $1 permissions to use this command.",
+    BOT_PERM_REQ: "I need $1 permissions to do that."
+};
+
 class CommandArgs {
     constructor(message, DB, prefix, moduleLoader) {
         if (!prefix) prefix = "";
@@ -20,6 +30,32 @@ class CommandArgs {
         this.output = function () { };
         this.setDBContext({ user: message.author, guild: message.guild });
         this.prefetched = {};
+        this.botPerms = this.getBotPerms(message.channel);
+    }
+    getBotPerms(channel) {
+        let perms = {
+            send: true,
+            embed: true,
+            attach: true
+        };
+        if (channel) {
+            if (channel.type === "dm" || channel.type === "group") {
+            } else {
+                let botPermissions = channel.permissionsFor(this.client.user);
+                if (botPermissions) {
+                    if (!botPermissions.has("SEND_MESSAGES")) {
+                        perms.send = false;
+                        perms.embed = false;
+                        perms.attach = false;
+                    } else {
+                        if (!botPermissions.has("EMBED_LINKS")) perms.embed = false;
+                        if (!botPermissions.has("ATTACH_FILES")) perms.attach = false;
+                    }
+                }
+            }
+            return perms;
+        }
+        return this.botPerms || perms;
     }
     /** @returns {string[]} */
     getArgs() {
@@ -127,6 +163,10 @@ class CommandArgs {
             this.parsed = parsed;
             return parsed;
         }
+    }
+    getError(id, ...args) {
+        if (messageErrors[id]) return messageErrors[id].replace(/\$([0-9]+)/g, (match, arg) => args[parseInt(arg) - 1] || match);
+        else return id;
     }
     setOutputCallback(out) {
         this.output = out;

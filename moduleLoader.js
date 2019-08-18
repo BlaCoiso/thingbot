@@ -6,6 +6,7 @@ const fs = require("fs");
 const modulePath = "./bot_modules";
 const BaseModule = require("./moduleBase");
 const commandRegex = /^[0-9a-zA-Z_\-\.]+$/;
+const Discord = require("discord.js");
 
 class ModuleLoader {
     constructor() {
@@ -63,48 +64,81 @@ class ModuleLoader {
     }
     handleCommand(command, message, args) {
         var cmdObj = this.commands.get(command);
+        var logger = this.logger;
         function handleCommandOutput(output) {
+            function sendMessage(content, channel, options) {
+                return channel.send(content, options).catch(e => logger("Failed to send command response", e));
+            }
             if (output) {
-                //TODO: Bot permission checks (send message, embed, upload)
-                let outputChannel = (cmdObj.sendDM && output.sendDM !== false) ? message.author : message.channel;
+                let outputChannel = ((cmdObj && cmdObj.sendDM) ? output.sendDM !== false : output.sendDM) ? message.author : message.channel;
                 let sendOptions = {};
-                if (cmdObj.reply && output.reply !== false) sendOptions.reply = message.author;
+                let botPerms = args.getBotPerms(outputChannel);
+                if ((cmdObj && cmdObj.reply) ? output.reply !== false : output.reply) sendOptions.reply = message.author;
                 if (typeof output === "string") {
-                    return outputChannel.send(output, sendOptions)
-                        .catch(e => this.logger("Failed to send command response", e));
+                    if (botPerms.send) return sendMessage(output, outputChannel, sendOptions);
                 }
-                else if (output instanceof Promise) {
-                    return output.then(out => handleCommandOutput(out))
-                        .catch(e => this.logger(`Failed to handle asynchronous command '${command}'`, e));
-                } else {
-                    //TODO: Embeds, permissions, merge options
-                    if (output.text && typeof output.text === "string") {
-                        return outputChannel.send(output.text, sendOptions)
-                            .catch(e => this.logger("Failed to send command response", e));
+                else if (output instanceof Promise) return output.then(out => handleCommandOutput(out))
+                    .catch(e => logger(`Failed to handle asynchronous command '${command}'`, e));
+                else if (typeof output === "object") {
+                    if (output instanceof Discord.Message) { }
+                    else if (output instanceof Discord.RichEmbed) {
+                        if (botPerms.embed) {
+                            sendOptions.embed = output;
+                            return sendMessage(sendOptions, outputChannel);
+                        }
+                    } else if (output instanceof Discord.Attachment) {
+                        if (botPerms.attach) {
+                            sendOptions.file = output;
+                            return sendMessage(sendOptions, outputChannel);
+                        }
+                    } else {
+                        if (output.split) sendOptions.split = output.split;
+                        if (typeof output.disableEveryone === "boolean") sendOptions.disableEveryone = output.disableEveryone;
+                        if (output.tts) sendOptions.tts = true;
+                        if (output.code) sendOptions.code = output.code;
+                        if (output.attachment && botPerms.attach) {
+                            if (Array.isArray(output.attachment)) sendOptions.files = output.attachment;
+                            else sendOptions.file = output.attachment;
+                        }
+                        if (output.options && typeof output.options === "object") Object.assign(sendOptions, options);
+                        if (output.embed && botPerms.embed) {
+                            sendOptions.embed = output.embed;
+                            return sendMessage(sendOptions, outputChannel);
+                        }
+                        else if (output.text && botPerms.send) {
+                            if (botPerms.send) return sendMessage(output.text, outputChannel, sendOptions);
+                        } else if (output.attachment && botPerms.attach) return sendMessage(sendOptions, outputChannel);
+                        if (output.embed && !output.text && !botPerms.embed && botPerms.send) sendMessage(args.getError("NO_EMBED"), outputChannel);
                     }
-                    return false;
                 }
             }
-            return false;
+            return Promise.resolve(false);
         }
+        args.setOutputCallback(handleCommandOutput);
         if (cmdObj) {
             //TODO: User permission checks and command permissions
-            if (args.isDM && cmdObj.disableDM) handleCommandOutput("This command is unavailable in DMs.");
-            args.setOutputCallback(handleCommandOutput);
+            if (args.isDM && cmdObj.disableDM) handleCommandOutput(args.getError("NO_DM"));
             args.setDBContext({ module: cmdObj.module });
             if (!cmdObj.output || !handleCommandOutput(cmdObj.output)) {
+                let commandFailLog = `Failed to handle command '${command}'`;
                 if (cmdObj.prefetch) {
                     args.wrappedDB.prefetch(cmdObj.prefetch).then(p => {
                         args.setPrefetched(p);
                         handleCommandOutput(cmdObj.run(message, args));
-                    }, e => this.logger(`Failed to prefetch paths for command ${command}`, e))
-                        .catch(e => cmdObj.module.logger(`Failed to handle command '${command}'`, e));
+                    }, e => {
+                        this.logger(`Failed to prefetch paths for command ${command}`, e);
+                        handleCommandOutput(args.getError("EXEC_ERR"));
+                    }).catch(e => {
+                        cmdObj.module.logger(commandFailLog, e);
+                        handleCommandOutput(args.getError("EXEC_ERR"));
+                    });
                 } else {
                     try {
                         handleCommandOutput(cmdObj.run(message, args));
                     }
                     catch (e) {
                         cmdObj.module.logger(`Failed to handle command '${command}'`, e);
+                        handleCommandOutput(args.getError("EXEC_ERR"));
                     }
                 }
             }
