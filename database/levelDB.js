@@ -4,6 +4,7 @@
 //jshint esversion: 6
 const leveldown = require("leveldown");
 const BaseDB = require("./baseDBProvider");
+const DBErrors = require("./DBError");
 
 const DataTypes = {
     invalidType: -1,
@@ -91,6 +92,10 @@ class LevelDB extends BaseDB {
      * @param {Buffer[]} values List of values
      */
     parseData(base, keys, values) {
+        if (keys.length === 0) {
+            if (this.failIfMissing) throw new DBErrors.DBPathError(null, base);
+            return;
+        }
         let data;
         let baseIndex = keys.indexOf(base);
         /**@type {Buffer} */
