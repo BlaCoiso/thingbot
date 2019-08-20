@@ -116,29 +116,31 @@ class ModuleLoader {
         }
         args.setOutputCallback(handleCommandOutput);
         if (cmdObj) {
-            //TODO: User permission checks and command permissions
             if (args.isDM && cmdObj.disableDM) handleCommandOutput(args.getError("NO_DM"));
-            args.setDBContext({ module: cmdObj.module });
-            if (!cmdObj.output || !handleCommandOutput(cmdObj.output)) {
-                let commandFailLog = `Failed to handle command '${command}'`;
-                if (cmdObj.prefetch) {
-                    args.wrappedDB.prefetch(cmdObj.prefetch).then(p => {
-                        args.setPrefetched(p);
-                        handleCommandOutput(cmdObj.run(message, args));
-                    }, e => {
-                        this.logger(`Failed to prefetch paths for command ${command}`, e);
-                        handleCommandOutput(args.getError("EXEC_ERR"));
-                    }).catch(e => {
-                        cmdObj.module.logger(commandFailLog, e);
-                        handleCommandOutput(args.getError("EXEC_ERR"));
-                    });
-                } else {
-                    try {
-                        handleCommandOutput(cmdObj.run(message, args));
-                    }
-                    catch (e) {
-                        cmdObj.module.logger(`Failed to handle command '${command}'`, e);
-                        handleCommandOutput(args.getError("EXEC_ERR"));
+            else if (!args.checkPerms(cmdObj.perms)) handleCommandOutput(args.getError("NO_PERMS"));
+            else {
+                args.setDBContext({ module: cmdObj.module });
+                if (!cmdObj.output || !handleCommandOutput(cmdObj.output)) {
+                    let commandFailLog = `Failed to handle command '${command}'`;
+                    if (cmdObj.prefetch) {
+                        args.wrappedDB.prefetch(cmdObj.prefetch).then(p => {
+                            args.setPrefetched(p);
+                            handleCommandOutput(cmdObj.run(message, args));
+                        }, e => {
+                            this.logger(`Failed to prefetch paths for command ${command}`, e);
+                            handleCommandOutput(args.getError("EXEC_ERR"));
+                        }).catch(e => {
+                            cmdObj.module.logger(commandFailLog, e);
+                            handleCommandOutput(args.getError("EXEC_ERR"));
+                        });
+                    } else {
+                        try {
+                            handleCommandOutput(cmdObj.run(message, args));
+                        }
+                        catch (e) {
+                            cmdObj.module.logger(`Failed to handle command '${command}'`, e);
+                            handleCommandOutput(args.getError("EXEC_ERR"));
+                        }
                     }
                 }
             }

@@ -9,7 +9,14 @@ const OutputObject = {
     sendDM: false,
     /** Reply to user */
     reply: false,
-    text: "output message contents"
+    split: false,
+    disableEveryone: false,
+    tts: false,
+    code: null,
+    options: {},
+    text: "output message contents",
+    embed: null,
+    attachment: null
 };
 
 class BaseModule {
@@ -75,7 +82,11 @@ class ModuleCommand {
          * @type {string|string[]?}
          */
         this.prefetch = ["module.var1", "guild.module.var2"];
-        //TODO: Permissions
+        /**
+         * List of permissions required to use the command (user must have at least one of them)
+         * @type {string|string[]?}
+         */
+        this.perms = ["perm1", "perm2"];
     }
     /**
      * Run the command

@@ -43,20 +43,19 @@ class CoreModule extends BaseModule {
                 name: "reload",
                 description: "Reloads all modules",
                 usage: "[moduleName]",
+                perms: "bot_owner",
                 reply: true,
                 run(msg, args) {
-                    if (this.module.DB.getOwnerList().includes(msg.author.id)) {
-                        if (args.args.length === 0 || (args.args.length === 1 && args.args[0].toLowerCase() === "all")) {
-                            args.reloadAll();
-                            return "Reloaded all modules.";
-                        } else {
-                            let reloaded = [];
-                            for (let modName of args.args) {
-                                if (args.reloadModule(modName)) reloaded.push(modName);
-                            }
-                            return `Reloaded ${reloaded.length} module${reloaded.length === 1 ? '' : 's'}${reloaded.length > 0 ? " (" + reloaded.join(", ") + ")" : ""}.`;
+                    if (args.args.length === 0 || (args.args.length === 1 && args.args[0].toLowerCase() === "all")) {
+                        args.reloadAll();
+                        return "Reloaded all modules.";
+                    } else {
+                        let reloaded = [];
+                        for (let modName of args.args) {
+                            if (args.reloadModule(modName)) reloaded.push(modName);
                         }
-                    } else return args.getError("NO_PERMS");
+                        return `Reloaded ${reloaded.length} module${reloaded.length === 1 ? '' : 's'}${reloaded.length > 0 ? " (" + reloaded.join(", ") + ")" : ""}.`;
+                    }
                 }
             },
             {
@@ -79,8 +78,7 @@ class CoreModule extends BaseModule {
                     let curPrefix = guild ? (guild === "none" ? "mention only" : '`' + guild + '`') : defPrefix;
                     let parsedArgs = args.getParsed();
                     let newThing = "";
-                    //TODO: Permissions and stuff; this code is disabled until perms are implemented
-                    if (parsedArgs.length !== 0 && !args.isDM && false) {
+                    if (parsedArgs.length !== 0 && !args.isDM && args.checkPerms(["bot_owner", "server"])) {
                         let argText = parsedArgs[0].text;
                         let argCmd = argText.toLowerCase();
                         let argType = parsedArgs[0].type;
@@ -94,9 +92,8 @@ class CoreModule extends BaseModule {
                         if (argCmd === "clear" || argCmd === "reset" || (global && argText === global)) {
                         } else if (argCmd === "none" || argCmd === "disable") newThing = "none";
                         else {
-                            if (argType !== "text") {
-                                return "Invalid prefix.";
-                            } else newThing = argText;
+                            if (argType !== "text") return "Invalid prefix.";
+                            else newThing = argText;
                         }
                         if (newThing === guild) return `The current prefix already is ${curPrefix}.`;
                         else {
@@ -138,6 +135,7 @@ class CoreModule extends BaseModule {
                 name: "eval",
                 description: "Evaluates code (owner only)",
                 usage: "<code>",
+                perms: "bot_owner",
                 run(msg, args) {
                     //TODO: Config option to disable eval (global.core.disableEval ?)
                     function getErrorMessage(e) {
@@ -145,24 +143,22 @@ class CoreModule extends BaseModule {
                         else if (typeof e === "object") return `(\`${e.name || "Error"}\`): ${e.message || "Unknown error"}`;
                         return "Unknown error";
                     }
-                    if (args.DB.getOwnerList().includes(msg.author.id)) {
-                        let evalCode = args.content.slice(args.command.length).trimLeft();
-                        if (!evalCode) return "No code specified.";
-                        this.module.logger(`User ${msg.author.username}#${msg.author.discriminator} (${msg.author.id}) used eval: "${evalCode}"`);
-                        let text = `Input: \`\`\`js\n${evalCode}\`\`\``;
-                        try {
-                            //jshint -W061
-                            let evalRes = eval(evalCode);
-                            if (evalRes instanceof Promise) {
-                                let out = args.output(text + "Result: [`PROMISE`]");
-                                return evalRes.then(v => out.then(m => m.edit(`${m.content}\`\`\`js\n${inspect(v, false, 0)}\`\`\``)))
-                                    .catch(e => out.then(m => m.edit(`${m.content}\nAsync Error: ${getErrorMessage(e)}`)));
-                            }
-                            else return text + `Result: \`\`\`js\n${inspect(evalRes, false, 0)}\`\`\``;
-                        } catch (e) {
-                            return text + `Error: ${getErrorMessage(e)}`;
+                    let evalCode = args.content.slice(args.command.length).trimLeft();
+                    if (!evalCode) return "No code specified.";
+                    this.module.logger(`User ${msg.author.username}#${msg.author.discriminator} (${msg.author.id}) used eval: "${evalCode}"`);
+                    let text = `Input: \`\`\`js\n${evalCode}\`\`\``;
+                    try {
+                        //jshint -W061
+                        let evalRes = eval(evalCode);
+                        if (evalRes instanceof Promise) {
+                            let out = args.output(text + "Result: [`PROMISE`]");
+                            return evalRes.then(v => out.then(m => m.edit(`${m.content}\`\`\`js\n${inspect(v, false, 0)}\`\`\``)))
+                                .catch(e => out.then(m => m.edit(`${m.content}\nAsync Error: ${getErrorMessage(e)}`)));
                         }
-                    } else return args.getError("NO_PERMS");
+                        else return text + `Result: \`\`\`js\n${inspect(evalRes, false, 0)}\`\`\``;
+                    } catch (e) {
+                        return text + `Error: ${getErrorMessage(e)}`;
+                    }
                 }
             }
         ];

@@ -31,6 +31,7 @@ class CommandArgs {
         this.setDBContext({ user: message.author, guild: message.guild });
         this.prefetched = {};
         this.botPerms = this.getBotPerms(message.channel);
+        this.setPerms();
     }
     getBotPerms(channel) {
         let perms = {
@@ -39,7 +40,7 @@ class CommandArgs {
             attach: true
         };
         if (channel) {
-            if (channel.type === "dm" || channel.type === "group") {
+            if (channel.type === "dm" || channel.type === "group" || channel.dmChannel || !channel.permissionsFor) {
             } else {
                 let botPermissions = channel.permissionsFor(this.client.user);
                 if (botPermissions) {
@@ -191,6 +192,37 @@ class CommandArgs {
             this.parsedArgs = null;
             this.getParsed();
         }
+    }
+    setPerms(permissions) {
+        if (!this.perms) this.perms = [];
+        let newPerms = [];
+        if (permissions) {
+            if (typeof permissions === "string") newPerms.push(permissions);
+            else if (Array.isArray(permissions)) newPerms = newPerms.concat(permissions);
+        } else {
+            let user = this.message.author;
+            if (this.DB.getOwnerList().includes(user.id)) newPerms.push("bot_owner");
+            if (!this.isDM) {
+                let member = this.message.member;
+                if (member.hasPermission("ADMINISTRATOR")) newPerms.push("admin");
+                if (member.hasPermission("KICK_MEMBERS")) newPerms.push("kick");
+                if (member.hasPermission("BAN_MEMBERS")) newPerms.push("ban");
+                if (member.hasPermission("MANAGE_CHANNELS")) newPerms.push("channels");
+                if (member.hasPermission("MANAGE_GUILD")) newPerms.push("server");
+                if (member.hasPermission("MANAGE_MESSAGES")) newPerms.push("messages");
+                if (member.hasPermission("MANAGE_NICKNAMES")) newPerms.push("nicknames");
+                if (member.hasPermission("MANAGE_ROLES")) newPerms.push("roles");
+                if (member.hasPermission("MANAGE_WEBHOOKS")) newPerms.push("webhooks");
+                if (member.hasPermission("MANAGE_EMOJIS")) newPerms.push("emojis");
+            }
+        }
+        this.perms = this.perms.concat(newPerms.filter((p, i) => p && newPerms.indexOf(p) === i && !this.perms.includes(p)));
+    }
+    checkPerms(requiredPerms) {
+        if (!requiredPerms || (Array.isArray(requiredPerms) && requiredPerms.length === 0)) return true;
+        if (typeof requiredPerms === "string") requiredPerms = [requiredPerms];
+        if (!Array.isArray(requiredPerms)) return true;
+        return requiredPerms.some(p => this.perms.includes(p));
     }
     loadModule(modName) {
         modName = checkModName(modName);
